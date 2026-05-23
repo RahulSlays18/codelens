@@ -1,0 +1,109 @@
+/* ── INPUT PANEL ── */
+.lang-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--bg2);
+}
+.lang-label {
+  font-size: 0.72rem;
+  color: var(--muted);
+  letter-spacing: 0.05em;
+}
+select#lang {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s;
+}
+select#lang:focus { border-color: var(--accent); }
+
+.line-count {
+  margin-left: auto;
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+textarea#code-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  font-family: var(--mono);
+  font-size: 0.88rem;
+  line-height: 1.7;
+  color: var(--text);
+  padding: 18px 20px;
+  tab-size: 2;
+}
+textarea#code-input::placeholder { color: var(--muted); opacity: 0.6; }
+textarea#code-input::-webkit-scrollbar { width: 4px; }
+textarea#code-input::-webkit-scrollbar-track { background: transparent; }
+textarea#code-input::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+.input-footer {
+  padding: 14px 18px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  background: var(--bg3);
+}
+
+/* ANALYZE BUTTON */
+#analyze-btn {
+  flex: 1;
+  padding: 11px 20px;
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  border-radius: var(--radius);
+  font-family: var(--sans);
+  font-weight: 700;
+  font-size: 0.9rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+#analyze-btn:hover { background: #00c9aa; box-shadow: 0 0 20px rgba(0,229,195,0.3); }
+#analyze-btn:active { transform: scale(0.98); }
+#analyze-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+#clear-btn {
+  padding: 11px 14px;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+#clear-btn:hover { border-color: var(--danger); color: var(--danger); }
+
+/* ── LOADING SPINNER ── */
+.spinner {
+  width: 16px; height: 16px;
+  border: 2px solid rgba(0,0,0,0.3);
+  border-top-color: var(--bg);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: none;
+}
+@keyframes spin { to { transform: rotate(360deg); } }

@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CodeLens — AI Code Analyzer</title>
+
+  <!-- ── Fonts ── -->
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet" />
+
+  <!-- ── Cytoscape.js ── -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
+
+  <!-- ── Styles ── -->
+  <link rel="stylesheet" href="css/variables.css" />
+  <link rel="stylesheet" href="css/layout.css" />
+  <link rel="stylesheet" href="css/input.css" />
+  <link rel="stylesheet" href="css/panels.css" />
+</head>
+<body>
+
+<!-- ═══════════════ HEADER ═══════════════ -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">⌬</div>
+    Code<span>Lens</span>
+    <span class="logo-version">v0.1.0</span>
+  </div>
+</header>
+
+<!-- ═══════════════ MAIN APP ═══════════════ -->
+<main class="app">
+
+  <!-- ── LEFT: CODE INPUT ── -->
+  <section class="panel panel-input">
+    <div class="panel-header">
+      <span class="panel-title">
+        <span class="dot active"></span>
+        Code Input
+      </span>
+      <span style="font-size:0.7rem;color:var(--muted)">Paste any snippet</span>
+    </div>
+
+    <div class="lang-row">
+      <span class="lang-label">LANGUAGE</span>
+      <select id="lang">
+        <option value="c">C</option>
+        <option value="cpp">C++</option>
+        <option value="python">Python</option>
+        <option value="java">Java</option>
+      </select>
+      <span class="line-count" id="line-count">0 lines</span>
+    </div>
+
+    <textarea
+      id="code-input"
+      spellcheck="false"
+      placeholder="// Paste your C, C++, Python, or Java code here
+// Example (Python):
+
+def binary_search(arr, target):
+    left, right = 0, len(arr) - 1
+    while left <= right:
+        mid = (left + right) // 2
+        if arr[mid] == target:
+            return mid
+        elif arr[mid] < target:
+            left = mid + 1
+        else:
+            right = mid - 1
+    return -1"
+    ></textarea>
+
+    <div class="input-footer">
+      <button id="clear-btn" title="Clear input">Clear</button>
+      <button id="analyze-btn">
+        <span id="btn-text">⚡ Analyze Code</span>
+        <span class="spinner" id="btn-spinner"></span>
+      </button>
+    </div>
+  </section>
+
+  <!-- ── RIGHT TOP: GRAPH CANVAS ── -->
+  <section class="panel panel-graph">
+    <div class="panel-header">
+      <span class="panel-title">
+        <span class="dot" id="graph-dot"></span>
+        Execution Flow Graph
+      </span>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:0.7rem;color:var(--muted)" id="graph-status">Awaiting analysis</span>
+        <button class="info-btn" tabindex="0" aria-label="Graph legend">i
+          <div class="info-tooltip">
+            <ul>
+              <li>🟢 <strong>Entry</strong> — teal</li>
+              <li>🔴 <strong>Return</strong> — red</li>
+              <li>🟣 <strong>Condition</strong> (if/else) — purple</li>
+              <li>🟠 <strong>Loop</strong> (while/for) — orange</li>
+              <li>🔵 <strong>Function call</strong> — blue</li>
+              <li>⬛ <strong>Assignment</strong> — dark grey</li>
+            </ul>
+            <hr class="tip-divider">
+            <p class="tip-note">↗ Arrows show execution flow direction</p>
+            <p class="tip-note">🖱 Zoom &amp; pan with mouse/trackpad</p>
+            <p class="tip-note">🖊 Click nodes/edges to highlight in teal</p>
+          </div>
+        </button>
+      </div>
+    </div>
+
+    <div id="graph-canvas">
+      <div class="graph-empty" id="graph-empty">
+        <div class="graph-icon">◈</div>
+        <p>Execution graph will render here after analysis</p>
+        <p style="font-size:0.68rem;opacity:0.5">Powered by Cytoscape.js</p>
+      </div>
+      <div id="cy-container" style="width:100%;height:100%;display:none;"></div>
+    </div>
+  </section>
+
+  <!-- ── RIGHT BOTTOM: COMPLEXITY DASHBOARD ── -->
+  <section class="panel panel-dash">
+    <div class="panel-header">
+      <span class="panel-title">
+        <span class="dot" id="dash-dot"></span>
+        Complexity Dashboard
+      </span>
+      <span style="font-size:0.7rem;color:var(--muted)" id="dash-status">—</span>
+    </div>
+
+    <div class="metrics-grid">
+      <!-- Time Complexity -->
+      <div class="metric-card">
+        <span class="metric-label">Time Complexity</span>
+        <span class="metric-value --time" id="time-val">—</span>
+        <span class="metric-sub" id="time-sub"></span>
+      </div>
+      <!-- Space Complexity -->
+      <div class="metric-card">
+        <span class="metric-label">Space Complexity</span>
+        <span class="metric-value --space" id="space-val">—</span>
+        <span class="metric-sub" id="space-sub"></span>
+      </div>
+    </div>
+
+    <!-- Optimization Tip -->
+    <div class="tip-card">
+      <div class="tip-icon">💡</div>
+      <div class="tip-content">
+        <div class="tip-title">Optimization Tip</div>
+        <div class="tip-text" id="tip-text">
+          Run an analysis to get an AI-powered suggestion here.
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ── STATUS BAR ── -->
+<div class="statusbar">
+  <div class="status-item">
+    <span class="status-dot ready" id="api-dot"></span>
+    <span id="api-label">Groq: Not Connected</span>
+  </div>
+  <div class="status-item">
+    <span class="status-dot ready"></span>
+    <span>Cytoscape.js: Active</span>
+  </div>
+  <span id="status-text">Ready</span>
+</div>
+
+<!-- ── TOAST ── -->
+<div id="toast"></div>
+
+<!-- ── Scripts (order matters) ── -->
+<script src="js/config.local.js"></script>
+<script src="js/api.js"></script>
+<script src="js/graph.js"></script>
+<script src="js/main.js"></script>
+
+</body>
+</html>

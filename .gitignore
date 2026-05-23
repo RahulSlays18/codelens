@@ -1,0 +1,13 @@
+# API key — never commit this
+js/config.local.js
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editor folders
+.vscode/
+.idea/
+
+# Node (if you ever add npm)
+node_modules/
