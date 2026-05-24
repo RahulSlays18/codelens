@@ -11,3 +11,6 @@ Thumbs.db
 
 # Node (if you ever add npm)
 node_modules/
+
+.env
+node_modules/
