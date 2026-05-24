@@ -17,6 +17,19 @@ db.exec(`
     created    TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (user_id) REFERENCES users(id)
   );
+  CREATE TABLE IF NOT EXISTS challenges (
+    id          TEXT PRIMARY KEY,
+    owner_id    INTEGER,
+    owner_code  TEXT,
+    owner_lang  TEXT,
+    owner_result TEXT,
+    rival_id    INTEGER,
+    rival_code  TEXT,
+    rival_lang  TEXT,
+    rival_result TEXT,
+    verdict     TEXT,
+    created     TEXT DEFAULT (datetime('now'))
+    );
 `);
 
 module.exports = db;

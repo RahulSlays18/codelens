@@ -82,3 +82,59 @@ function verifyToken(req, res, next) {
   try { req.user = jwt.verify(token, process.env.JWT_SECRET); next(); }
   catch { res.status(401).json({ error: 'Invalid token' }); }
 }
+const { randomUUID } = require('crypto');
+
+// Create challenge
+app.post('/challenge/create', verifyToken, (req, res) => {
+  const { code, lang, result } = req.body;
+  const id = randomUUID();
+  db.prepare(`INSERT INTO challenges (id,owner_id,owner_code,owner_lang,owner_result)
+              VALUES (?,?,?,?,?)`)
+    .run(id, req.user.id, code, lang, JSON.stringify(result));
+  res.json({ challengeId: id, link: `/challenge/${id}` });
+});
+
+// Accept challenge + AI judge
+app.post('/challenge/submit', verifyToken, async (req, res) => {
+  const { challengeId, code, lang, result } = req.body;
+  const challenge = db.prepare('SELECT * FROM challenges WHERE id=?').get(challengeId);
+  if (!challenge) return res.status(404).json({ error: 'Challenge not found' });
+
+  // Ask Groq to judge
+  const prompt = `Compare these two code snippets and return ONLY valid JSON:
+{
+  "same_problem": true,
+  "problem_summary": "what problem both solve",
+  "winner": "A or B or tie",
+  "reason": "one sentence why",
+  "a_complexity": "O(...)",
+  "b_complexity": "O(...)"
+}
+Code A (${challenge.owner_lang}):
+${challenge.owner_code}
+
+Code B (${lang}):
+${code}`;
+
+  const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
+    body: JSON.stringify({ model: 'llama-3.3-70b-versatile', max_tokens: 500, temperature: 0.1,
+      messages: [{ role: 'user', content: prompt }] }),
+  });
+  const groqData = await groqRes.json();
+  const raw = groqData.choices?.[0]?.message?.content || '{}';
+  const verdict = JSON.parse(raw.replace(/```json|```/g, '').trim());
+
+  db.prepare(`UPDATE challenges SET rival_id=?,rival_code=?,rival_lang=?,rival_result=?,verdict=? WHERE id=?`)
+    .run(req.user.id, code, lang, JSON.stringify(result), JSON.stringify(verdict), challengeId);
+
+  res.json({ verdict, challenge });
+});
+
+// Get challenge result
+app.get('/challenge/:id', (req, res) => {
+  const c = db.prepare('SELECT * FROM challenges WHERE id=?').get(req.params.id);
+  if (!c) return res.status(404).json({ error: 'Not found' });
+  res.json(c);
+});
