@@ -7,6 +7,10 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('.'));   // serves your index.html
 
+// ── Page routes ──
+const path = require('path');
+app.get('/login', (req, res) => res.sendFile(path.join(__dirname, 'login.html')));
+app.get('/',      (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 app.post('/analyze', async (req, res) => {
   const { code, lang } = req.body;
 
@@ -32,8 +36,9 @@ app.post('/analyze', async (req, res) => {
   res.json(JSON.parse(raw.replace(/```json|```/g, '').trim()));
 });
 
-app.listen(process.env.PORT, () =>
-  console.log(`Server running on http://localhost:${process.env.PORT}`)
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () =>
+  console.log(`✓ Server running on http://localhost:${PORT}`)
 );
 const bcrypt = require('bcrypt');
 const jwt    = require('jsonwebtoken');

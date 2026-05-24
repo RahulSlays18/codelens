@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CodeLens — Login</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:      #0a0c10;
+      --bg2:     #111318;
+      --bg3:     #181c24;
+      --border:  #1f2430;
+      --accent:  #00e5c3;
+      --accent2: #ff6b35;
+      --text:    #e2e8f0;
+      --muted:   #5a6480;
+      --danger:  #ff4d6d;
+      --mono:    'JetBrains Mono', monospace;
+      --sans:    'Syne', sans-serif;
+      --radius:  10px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 14px; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--mono);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* grid background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,229,195,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,229,195,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── LOGO ── */
+    .logo {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--sans);
+      font-weight: 800;
+      font-size: 1.4rem;
+      letter-spacing: -0.02em;
+      margin-bottom: 32px;
+    }
+    .logo-icon {
+      width: 36px; height: 36px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      color: var(--bg);
+      font-size: 1.1rem;
+    }
+    .logo span { color: var(--accent); }
+    .logo-version {
+      font-family: var(--mono);
+      font-size: 0.6rem;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1px 5px;
+      margin-left: 2px;
+    }
+
+    /* ── CARD ── */
+    .card {
+      position: relative;
+      z-index: 1;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      width: 100%;
+      max-width: 400px;
+      overflow: hidden;
+    }
+
+    /* ── TABS ── */
+    .tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      border-bottom: 1px solid var(--border);
+    }
+    .tab {
+      padding: 14px;
+      text-align: center;
+      font-family: var(--sans);
+      font-weight: 600;
+      font-size: 0.82rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      cursor: pointer;
+      background: var(--bg3);
+      border: none;
+      transition: color 0.2s, background 0.2s;
+    }
+    .tab.active {
+      color: var(--accent);
+      background: var(--bg2);
+      border-bottom: 2px solid var(--accent);
+    }
+    .tab:hover:not(.active) { color: var(--text); }
+
+    /* ── FORM ── */
+    .form-body { padding: 28px; }
+
+    .form-panel { display: none; }
+    .form-panel.active { display: block; }
+
+    .form-group {
+      margin-bottom: 18px;
+    }
+    .form-label {
+      display: block;
+      font-size: 0.68rem;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 7px;
+    }
+    .form-input {
+      width: 100%;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 0.88rem;
+      padding: 10px 14px;
+      border-radius: 8px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .form-input:focus { border-color: var(--accent); }
+    .form-input::placeholder { color: var(--muted); opacity: 0.5; }
+
+    /* ── SUBMIT BTN ── */
+    .btn-submit {
+      width: 100%;
+      padding: 12px;
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      border-radius: 8px;
+      font-family: var(--sans);
+      font-weight: 700;
+      font-size: 0.95rem;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-top: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .btn-submit:hover { background: #00c9aa; box-shadow: 0 0 20px rgba(0,229,195,0.3); }
+    .btn-submit:active { transform: scale(0.98); }
+    .btn-submit:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* ── ERROR / SUCCESS ── */
+    .msg {
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      margin-bottom: 16px;
+      display: none;
+    }
+    .msg.error   { background: rgba(255,77,109,0.12); border: 1px solid rgba(255,77,109,0.3); color: var(--danger); display: block; }
+    .msg.success { background: rgba(0,229,195,0.08);  border: 1px solid rgba(0,229,195,0.3);  color: var(--accent); display: block; }
+
+    /* ── SPINNER ── */
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(0,0,0,0.3);
+      border-top-color: var(--bg);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .footer-note {
+      text-align: center;
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-top: 20px;
+      position: relative;
+      z-index: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Logo -->
+  <div class="logo">
+    <div class="logo-icon">⌬</div>
+    Code<span>Lens</span>
+    <span class="logo-version">v0.1.0</span>
+  </div>
+
+  <!-- Card -->
+  <div class="card">
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab active" id="tab-login"    onclick="switchTab('login')">Login</button>
+      <button class="tab"        id="tab-register" onclick="switchTab('register')">Register</button>
+    </div>
+
+    <div class="form-body">
+
+      <!-- ── LOGIN FORM ── -->
+      <div class="form-panel active" id="panel-login">
+        <div class="msg" id="login-msg"></div>
+        <div class="form-group">
+          <label class="form-label">Username</label>
+          <input class="form-input" id="login-username" type="text" placeholder="your username" autocomplete="username" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input class="form-input" id="login-password" type="password" placeholder="••••••••" autocomplete="current-password" />
+        </div>
+        <button class="btn-submit" id="login-btn" onclick="handleLogin()">
+          <span id="login-btn-text">Login</span>
+          <span class="spinner" id="login-spinner"></span>
+        </button>
+      </div>
+
+      <!-- ── REGISTER FORM ── -->
+      <div class="form-panel" id="panel-register">
+        <div class="msg" id="register-msg"></div>
+        <div class="form-group">
+          <label class="form-label">Username</label>
+          <input class="form-input" id="reg-username" type="text" placeholder="pick a username" autocomplete="username" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input class="form-input" id="reg-password" type="password" placeholder="••••••••" autocomplete="new-password" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Confirm Password</label>
+          <input class="form-input" id="reg-confirm" type="password" placeholder="••••••••" autocomplete="new-password" />
+        </div>
+        <button class="btn-submit" id="register-btn" onclick="handleRegister()">
+          <span id="register-btn-text">Create Account</span>
+          <span class="spinner" id="register-spinner"></span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <p class="footer-note">Your analyses are saved to your account automatically.</p>
+
+<script>
+  // ── If already logged in, skip to main app ──
+  if (localStorage.getItem('cl_token')) {
+    window.location.href = '/';
+  }
+
+  // ── Tab switcher ──
+  function switchTab(tab) {
+    document.getElementById('panel-login').classList.toggle('active',    tab === 'login');
+    document.getElementById('panel-register').classList.toggle('active', tab === 'register');
+    document.getElementById('tab-login').classList.toggle('active',      tab === 'login');
+    document.getElementById('tab-register').classList.toggle('active',   tab === 'register');
+    clearMessages();
+  }
+
+  function clearMessages() {
+    ['login-msg', 'register-msg'].forEach(id => {
+      const el = document.getElementById(id);
+      el.textContent = '';
+      el.className = 'msg';
+    });
+  }
+
+  function showMsg(id, text, type) {
+    const el = document.getElementById(id);
+    el.textContent = text;
+    el.className = `msg ${type}`;
+  }
+
+  function setLoading(prefix, on) {
+    document.getElementById(`${prefix}-btn`).disabled     = on;
+    document.getElementById(`${prefix}-btn-text`).style.display  = on ? 'none' : 'inline';
+    document.getElementById(`${prefix}-spinner`).style.display   = on ? 'block' : 'none';
+  }
+
+  // ── LOGIN ──
+  async function handleLogin() {
+    const username = document.getElementById('login-username').value.trim();
+    const password = document.getElementById('login-password').value;
+    if (!username || !password) return showMsg('login-msg', 'Please fill in both fields.', 'error');
+
+    setLoading('login', true);
+    try {
+      const res  = await fetch('/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) return showMsg('login-msg', data.error || 'Login failed.', 'error');
+
+      localStorage.setItem('cl_token',    data.token);
+      localStorage.setItem('cl_username', data.username);
+      window.location.href = '/';
+    } catch {
+      showMsg('login-msg', 'Server error. Is the server running?', 'error');
+    } finally {
+      setLoading('login', false);
+    }
+  }
+
+  // ── REGISTER ──
+  async function handleRegister() {
+    const username = document.getElementById('reg-username').value.trim();
+    const password = document.getElementById('reg-password').value;
+    const confirm  = document.getElementById('reg-confirm').value;
+
+    if (!username || !password) return showMsg('register-msg', 'Please fill in all fields.', 'error');
+    if (password !== confirm)   return showMsg('register-msg', 'Passwords do not match.', 'error');
+    if (password.length < 6)    return showMsg('register-msg', 'Password must be at least 6 characters.', 'error');
+
+    setLoading('register', true);
+    try {
+      const res  = await fetch('/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) return showMsg('register-msg', data.error || 'Registration failed.', 'error');
+
+      showMsg('register-msg', 'Account created! Logging you in...', 'success');
+
+      // auto login after register
+      setTimeout(async () => {
+        const loginRes  = await fetch('/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password }),
+        });
+        const loginData = await loginRes.json();
+        localStorage.setItem('cl_token',    loginData.token);
+        localStorage.setItem('cl_username', loginData.username);
+        window.location.href = '/';
+      }, 1000);
+
+    } catch {
+      showMsg('register-msg', 'Server error. Is the server running?', 'error');
+    } finally {
+      setLoading('register', false);
+    }
+  }
+
+  // ── Allow Enter key to submit ──
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    const loginActive = document.getElementById('panel-login').classList.contains('active');
+    if (loginActive) handleLogin();
+    else handleRegister();
+  });
+</script>
+
+</body>
+</html>
