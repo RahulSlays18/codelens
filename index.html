@@ -5,33 +5,287 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CodeLens — AI Code Analyzer</title>
 
-  <!-- ── Fonts ── -->
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet" />
-
-  <!-- ── Cytoscape.js ── -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
 
-  <!-- ── Styles ── -->
   <link rel="stylesheet" href="css/variables.css" />
   <link rel="stylesheet" href="css/layout.css" />
   <link rel="stylesheet" href="css/input.css" />
   <link rel="stylesheet" href="css/panels.css" />
+
+  <style>
+    /* ── AUTH GATE ── */
+    #auth-gate {
+      position: fixed; inset: 0;
+      background: rgba(10,12,16,0.93);
+      backdrop-filter: blur(8px);
+      z-index: 200;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+    }
+    #auth-gate.hidden { display: none; }
+    .gate-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 40px 36px;
+      max-width: 380px; width: 90%;
+      text-align: center;
+    }
+    .gate-icon { font-size: 2.4rem; margin-bottom: 16px; }
+    .gate-title { font-family: var(--sans); font-size: 1.3rem; font-weight: 800; color: var(--text); margin-bottom: 8px; }
+    .gate-sub { font-size: 0.78rem; color: var(--muted); line-height: 1.7; margin-bottom: 28px; }
+    .gate-btns { display: flex; flex-direction: column; gap: 10px; }
+    .gate-btn-primary {
+      padding: 12px 20px; background: var(--accent); color: var(--bg);
+      border: none; border-radius: 8px; font-family: var(--sans);
+      font-weight: 700; font-size: 0.95rem; cursor: pointer; transition: all 0.2s;
+    }
+    .gate-btn-primary:hover { background: #00c9aa; box-shadow: 0 0 20px rgba(0,229,195,0.3); }
+    .gate-btn-secondary {
+      padding: 11px 20px; background: transparent; color: var(--text);
+      border: 1px solid var(--border); border-radius: 8px;
+      font-family: var(--sans); font-weight: 600; font-size: 0.88rem;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .gate-btn-secondary:hover { border-color: var(--muted); }
+
+    /* ── HEADER RIGHT ── */
+    .header-right { display: flex; align-items: center; gap: 8px; }
+    .header-btn {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 12px; border-radius: 6px;
+      font-family: var(--mono); font-size: 0.72rem;
+      cursor: pointer; border: 1px solid var(--border);
+      background: transparent; color: var(--muted);
+      transition: all 0.18s; white-space: nowrap;
+    }
+    .header-btn:hover { border-color: var(--muted); color: var(--text); }
+    .header-btn.accent { border-color: var(--accent); color: var(--accent); background: rgba(0,229,195,0.07); }
+    .header-btn.accent:hover { background: rgba(0,229,195,0.14); }
+    .header-btn.orange { border-color: var(--accent2); color: var(--accent2); background: rgba(255,107,53,0.07); }
+    .header-btn.orange:hover { background: rgba(255,107,53,0.14); }
+
+    /* ── USER PILL ── */
+    #user-pill {
+      display: flex; align-items: center; gap: 8px;
+      padding: 4px 10px 4px 6px; border-radius: 20px;
+      background: rgba(0,229,195,0.08);
+      border: 1px solid rgba(0,229,195,0.25);
+      font-family: var(--mono); font-size: 0.72rem;
+      color: var(--accent); cursor: pointer; position: relative;
+    }
+    #user-pill:hover { background: rgba(0,229,195,0.13); }
+    .user-avatar {
+      width: 22px; height: 22px; border-radius: 50%;
+      background: var(--accent); color: var(--bg);
+      display: grid; place-items: center;
+      font-weight: 700; font-size: 0.7rem;
+    }
+
+    /* ── DROPDOWN ── */
+    #user-dropdown {
+      position: absolute; top: calc(100% + 8px); right: 0;
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 10px; min-width: 180px; overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      z-index: 100; display: none;
+    }
+    #user-dropdown.open { display: block; }
+    .dropdown-header { padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 0.7rem; color: var(--muted); }
+    .dropdown-header strong { display: block; color: var(--text); font-size: 0.8rem; margin-bottom: 2px; }
+    .dropdown-item {
+      display: flex; align-items: center; gap: 8px;
+      width: 100%; padding: 10px 14px;
+      background: none; border: none; color: var(--text);
+      font-family: var(--mono); font-size: 0.75rem;
+      cursor: pointer; text-align: left; transition: background 0.15s;
+    }
+    .dropdown-item:hover { background: var(--bg3); }
+    .dropdown-item.danger { color: var(--danger); }
+
+    /* ── MODALS ── */
+    .modal-backdrop {
+      position: fixed; inset: 0;
+      background: rgba(10,12,16,0.75);
+      backdrop-filter: blur(4px);
+      z-index: 300; display: none;
+      align-items: center; justify-content: center;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal-box {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 14px; padding: 28px;
+      max-width: 440px; width: 92%; position: relative;
+    }
+    .modal-title { font-family: var(--sans); font-weight: 700; font-size: 1rem; margin-bottom: 6px; }
+    .modal-sub { font-size: 0.76rem; color: var(--muted); margin-bottom: 20px; }
+    .modal-close {
+      position: absolute; top: 16px; right: 16px;
+      background: none; border: none; color: var(--muted);
+      font-size: 1.1rem; cursor: pointer; line-height: 1;
+    }
+    .modal-close:hover { color: var(--text); }
+    .modal-btn {
+      padding: 9px 16px; background: var(--accent); color: var(--bg);
+      border: none; border-radius: 7px; font-family: var(--sans);
+      font-weight: 700; font-size: 0.8rem; cursor: pointer;
+      transition: all 0.18s; white-space: nowrap;
+    }
+    .modal-btn:hover { background: #00c9aa; }
+    .modal-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* ── SHARE ── */
+    .share-link-row { display: flex; gap: 8px; margin-bottom: 16px; }
+    .share-link-input {
+      flex: 1; background: var(--bg3); border: 1px solid var(--border);
+      color: var(--text); font-family: var(--mono); font-size: 0.75rem;
+      padding: 9px 12px; border-radius: 7px; outline: none;
+    }
+    .share-options { display: flex; gap: 8px; flex-wrap: wrap; }
+    .share-opt {
+      display: flex; align-items: center; gap: 6px;
+      padding: 8px 14px; border: 1px solid var(--border);
+      border-radius: 7px; background: var(--bg3);
+      color: var(--text); font-family: var(--mono);
+      font-size: 0.74rem; cursor: pointer; transition: all 0.18s;
+    }
+    .share-opt:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── COMPETITORS ── */
+    .search-input {
+      width: 100%; background: var(--bg3); border: 1px solid var(--border);
+      color: var(--text); font-family: var(--mono); font-size: 0.82rem;
+      padding: 10px 14px; border-radius: 8px; outline: none;
+      margin-bottom: 14px; transition: border-color 0.18s;
+    }
+    .search-input:focus { border-color: var(--accent); }
+    .comp-result-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 12px; border-radius: 8px;
+      background: var(--bg3); margin-bottom: 8px;
+    }
+    .comp-result-info { display: flex; align-items: center; gap: 10px; }
+    .comp-avatar {
+      width: 30px; height: 30px; border-radius: 50%;
+      background: var(--bg); border: 1px solid var(--border);
+      display: grid; place-items: center;
+      font-weight: 700; font-size: 0.75rem; color: var(--accent);
+    }
+    .comp-name { font-size: 0.82rem; color: var(--text); }
+    .comp-add-btn {
+      padding: 5px 12px; background: rgba(0,229,195,0.1);
+      border: 1px solid rgba(0,229,195,0.3); color: var(--accent);
+      border-radius: 6px; font-family: var(--mono);
+      font-size: 0.7rem; cursor: pointer; transition: all 0.18s;
+    }
+    .comp-add-btn:hover { background: rgba(0,229,195,0.2); }
+    .comp-add-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .comp-empty { text-align: center; color: var(--muted); font-size: 0.76rem; padding: 20px 0; }
+    #competitors-list { display: flex; align-items: center; }
+    .comp-pill-avatar {
+      width: 24px; height: 24px; border-radius: 50%;
+      background: var(--bg3); border: 2px solid var(--bg2);
+      display: grid; place-items: center;
+      font-size: 0.62rem; font-weight: 700;
+      color: var(--accent); margin-left: -4px;
+    }
+    .comp-pill-avatar:first-child { margin-left: 0; }
+
+    /* ── HISTORY ITEMS ── */
+    .history-item {
+      background: var(--bg3); border-radius: 8px;
+      padding: 12px 14px; margin-bottom: 8px; cursor: pointer;
+      border: 1px solid transparent; transition: border-color 0.18s;
+    }
+    .history-item:hover { border-color: var(--accent); }
+    .history-item-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+    .history-lang { font-size: 0.8rem; color: var(--text); font-family: var(--sans); font-weight: 600; }
+    .history-date { font-size: 0.68rem; color: var(--muted); }
+    .history-complexity { font-size: 0.72rem; color: var(--muted); }
+    .history-preview { font-size: 0.68rem; color: var(--muted); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  </style>
 </head>
 <body>
 
-<!-- ═══════════════ HEADER ═══════════════ -->
+<!-- ══ AUTH GATE ══ -->
+<div id="auth-gate">
+  <div class="gate-card">
+    <div class="gate-icon">⌬</div>
+    <div class="gate-title">Welcome to CodeLens</div>
+    <div class="gate-sub">
+      Analyze code complexity, visualize execution graphs,<br>
+      and challenge competitors — all in one place.<br><br>
+      Sign in to unlock save, share &amp; challenge features.
+    </div>
+    <div class="gate-btns">
+      <button class="gate-btn-primary" onclick="window.location.href='/login'">Login / Register</button>
+      <button class="gate-btn-secondary" onclick="continueAsGuest()">Continue as Guest (limited)</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ HEADER ══ -->
 <header>
   <div class="logo">
     <div class="logo-icon">⌬</div>
     Code<span>Lens</span>
     <span class="logo-version">v0.1.0</span>
   </div>
+
+  <div class="header-right">
+
+    <!-- Guest buttons (shown when not logged in) -->
+    <div id="guest-actions" style="display:none; align-items:center; gap:8px;">
+      <button class="header-btn" onclick="window.location.href='/login'">⚡ Login</button>
+      <button class="header-btn accent" onclick="window.location.href='/login'">Register</button>
+    </div>
+
+    <!-- Logged-in buttons -->
+    <div id="auth-actions" style="display:none; align-items:center; gap:8px;">
+
+      <button class="header-btn" id="save-btn" onclick="handleSave()">💾 Save</button>
+
+      <button class="header-btn accent" onclick="openShareModal()">↗ Share</button>
+
+      <button class="header-btn orange" onclick="openAddCompetitor()">⚔ Add Competitor</button>
+
+      <!-- Competitor avatar stack -->
+      <div id="competitors-list"></div>
+      <!-- Notification bell -->
+      <div style="position:relative;">
+        <button class="header-btn" id="notif-btn" onclick="openNotifications()" title="Competitor requests">
+    🔔    <span id="notif-count"
+           style="display:none;background:var(--danger);color:#fff;border-radius:10px;padding:1px 6px;font-size:0.65rem;margin-left:2px;">
+          </span>
+        </button>
+      </div>
+
+      <!-- User pill + dropdown -->
+      <div id="user-pill" onclick="toggleDropdown()">
+        <div class="user-avatar" id="user-avatar">?</div>
+        <span id="user-name-display">—</span>
+        <span style="opacity:0.5;">▾</span>
+
+        <div id="user-dropdown">
+          <div class="dropdown-header">
+            <strong id="dropdown-username">—</strong>
+            Logged in
+          </div>
+          <button class="dropdown-item" onclick="openHistory(); event.stopPropagation();">📜 My Saves</button>
+          <button class="dropdown-item" onclick="openAddCompetitor(); event.stopPropagation();">⚔ Competitors</button>
+          <button class="dropdown-item danger" onclick="handleLogout()">⎋ Log Out</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
 </header>
 
-<!-- ═══════════════ MAIN APP ═══════════════ -->
+<!-- ══ MAIN APP ══ -->
 <main class="app">
 
-  <!-- ── LEFT: CODE INPUT ── -->
+  <!-- LEFT: CODE INPUT -->
   <section class="panel panel-input">
     <div class="panel-header">
       <span class="panel-title">
@@ -80,7 +334,7 @@ def binary_search(arr, target):
     </div>
   </section>
 
-  <!-- ── RIGHT TOP: GRAPH CANVAS ── -->
+  <!-- RIGHT TOP: GRAPH -->
   <section class="panel panel-graph">
     <div class="panel-header">
       <span class="panel-title">
@@ -118,7 +372,7 @@ def binary_search(arr, target):
     </div>
   </section>
 
-  <!-- ── RIGHT BOTTOM: COMPLEXITY DASHBOARD ── -->
+  <!-- RIGHT BOTTOM: DASHBOARD -->
   <section class="panel panel-dash">
     <div class="panel-header">
       <span class="panel-title">
@@ -129,13 +383,11 @@ def binary_search(arr, target):
     </div>
 
     <div class="metrics-grid">
-      <!-- Time Complexity -->
       <div class="metric-card">
         <span class="metric-label">Time Complexity</span>
         <span class="metric-value --time" id="time-val">—</span>
         <span class="metric-sub" id="time-sub"></span>
       </div>
-      <!-- Space Complexity -->
       <div class="metric-card">
         <span class="metric-label">Space Complexity</span>
         <span class="metric-value --space" id="space-val">—</span>
@@ -143,7 +395,6 @@ def binary_search(arr, target):
       </div>
     </div>
 
-    <!-- Optimization Tip -->
     <div class="tip-card">
       <div class="tip-icon">💡</div>
       <div class="tip-content">
@@ -157,7 +408,7 @@ def binary_search(arr, target):
 
 </main>
 
-<!-- ── STATUS BAR ── -->
+<!-- ══ STATUS BAR ══ -->
 <div class="statusbar">
   <div class="status-item">
     <span class="status-dot ready" id="api-dot"></span>
@@ -170,14 +421,85 @@ def binary_search(arr, target):
   <span id="status-text">Ready</span>
 </div>
 
-<!-- ── TOAST ── -->
+<!-- ══ TOAST ══ -->
 <div id="toast"></div>
 
-<!-- ── Scripts (order matters) ── -->
+<!-- ══ SHARE MODAL ══ -->
+<div class="modal-backdrop" id="share-modal">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeModal('share-modal')">✕</button>
+    <div class="modal-title">↗ Share Analysis</div>
+    <div class="modal-sub">Generate a challenge link or export your results.</div>
+
+    <p style="font-size:0.74rem;color:var(--muted);margin-bottom:10px;">Challenge Link</p>
+    <div class="share-link-row">
+      <input class="share-link-input" id="share-link-input" readonly placeholder="Click below to generate..." />
+      <button class="modal-btn" onclick="copyShareLink()">Copy</button>
+    </div>
+    <button class="modal-btn" id="gen-challenge-btn" onclick="generateChallenge()" style="width:100%;margin-bottom:20px;">
+      ⚔ Generate Challenge Link
+    </button>
+
+    <p style="font-size:0.74rem;color:var(--muted);margin-bottom:10px;">Other options</p>
+    <div class="share-options">
+      <button class="share-opt" onclick="shareAsText()">📋 Copy as Text</button>
+      <button class="share-opt" onclick="downloadPNG()">🖼 Download Graph PNG</button>
+      <button class="share-opt" onclick="shareToTwitter()">𝕏 Tweet it</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ HISTORY MODAL ══ -->
+<div class="modal-backdrop" id="history-modal">
+  <div class="modal-box" style="max-width:520px;">
+    <button class="modal-close" onclick="closeModal('history-modal')">✕</button>
+    <div class="modal-title">📜 My Saved Analyses</div>
+    <div class="modal-sub">Click any entry to reload the code into the editor.</div>
+    <div id="history-list" style="max-height:340px;overflow-y:auto;">
+      <div class="comp-empty">Loading...</div>
+    </div>
+  </div>
+</div>
+<!-- NOTIFICATIONS MODAL -->
+<div class="modal-backdrop" id="notif-modal">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeModal('notif-modal')">✕</button>
+    <div class="modal-title">🔔 Competitor Requests</div>
+    <div class="modal-sub">People who want to compete with you.</div>
+    <div id="notif-list">
+      <div class="comp-empty">Loading...</div>
+    </div>
+  </div>
+</div>
+<!-- ══ ADD COMPETITOR MODAL ══ -->
+<div class="modal-backdrop" id="competitor-modal">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeModal('competitor-modal')">✕</button>
+    <div class="modal-title">⚔ Add Competitor</div>
+    <div class="modal-sub">Search for a CodeLens user to challenge.</div>
+
+    <input class="search-input" id="competitor-search"
+           placeholder="Search by username..."
+           oninput="searchCompetitors(this.value)" />
+    <div id="competitor-results">
+      <div class="comp-empty">Type a username to search</div>
+    </div>
+
+    <div style="margin-top:18px;">
+      <p style="font-size:0.72rem;color:var(--muted);margin-bottom:10px;">Your Competitors</p>
+      <div id="my-competitors-list">
+        <div class="comp-empty">No competitors added yet</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SCRIPTS ══ -->
 <script src="js/config.local.js"></script>
 <script src="js/api.js"></script>
 <script src="js/graph.js"></script>
 <script src="js/main.js"></script>
+<script src="js/auth-ui.js"></script>
 
 </body>
 </html>

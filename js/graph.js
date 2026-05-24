@@ -1,6 +1,6 @@
 // ─── CYTOSCAPE GRAPH RENDERER ────────────────────────────────────────
 let cyInstance = null;
-
+window.cyInstance = null;
 const NODE_COLORS = {
   entry:     { bg: '#00e5c3', border: '#00c9aa', text: '#0a0c10' },
   return:    { bg: '#ff4d6d', border: '#e0334f', text: '#fff' },
@@ -31,7 +31,7 @@ function renderGraph(nodes, edges) {
     }))
   ];
 
-  cyInstance = cytoscape({
+cyInstance = window.cyInstance = cytoscape({    
     container,
     elements,
     layout: {
