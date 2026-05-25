@@ -478,14 +478,15 @@
       });
       const comps = await res.json();
       const el    = document.getElementById('competitor-items');
+      const filtered = comps.filter(c => c.username !== challengeData.owner_name);
 
-      if (!comps.length) {
+      if (!filtered.length) {
         el.innerHTML = '<div style="color:var(--muted);font-size:0.74rem;">No competitors added yet.</div>';
         return;
       }
 
       const link = window.location.origin + `/challenge/${challengeId}`;
-      el.innerHTML = await Promise.all(comps.map(async c => {
+      el.innerHTML = await Promise.all(filtered.map(async c => {
         let trophies = 0;
         try {
           const r = await fetch(`/profile/${encodeURIComponent(c.username)}`);
@@ -551,7 +552,7 @@
       if (!submitRes.ok) throw new Error(data.error || 'Submit failed');
 
       document.getElementById('submit-section').style.display = 'none';
-      showVerdict(data.verdict);
+      showVerdict(data.verdict, code, lang, result);
       showToast('✓ Challenge complete!');
 
     } catch (err) {
@@ -563,7 +564,7 @@
   }
 
   // ── SHOW VERDICT ───────────────────────────
-  function showVerdict(verdict) {
+function showVerdict(verdict, rivalCode, rivalLang, rivalResultData) {
     const box = document.getElementById('verdict-box');
     box.classList.add('show');
 
@@ -571,7 +572,7 @@
       verdict.problem_summary || 'AI comparison complete.';
 
     const ownerResult = JSON.parse(challengeData.owner_result || '{}');
-    const rivalResult = JSON.parse(challengeData.rival_result || '{}');
+    const rivalResult = rivalResultData || JSON.parse(challengeData.rival_result || '{}');   
     const oc = ownerResult.complexity || {};
     const rc = rivalResult.complexity || {};
 
@@ -614,8 +615,8 @@
         </div>
         <div class="compare-complexity">Time: <span>${verdict.b_complexity || rc.time || '—'}</span></div>
         <div class="compare-complexity">Space: <span>${rc.space || '—'}</span></div>
-        <div class="compare-code">${escapeHtml(challengeData.rival_code || '')}</div>
-      </div>`;
+        <div class="compare-code">${escapeHtml(rivalCode || challengeData.rival_code || '')}</div>
+        </div>`;
 
     // Trophy notification
     if (winner !== 'tie') {

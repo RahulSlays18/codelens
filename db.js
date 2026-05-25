@@ -51,4 +51,16 @@ db.prepare(`
   )
 `).run();
 
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS challenge_notifications (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    to_user      TEXT NOT NULL,
+    from_user    TEXT NOT NULL,
+    challenge_id TEXT NOT NULL,
+    status       TEXT DEFAULT 'pending',
+    created      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(from_user, challenge_id)
+  )
+`).run();
+
 module.exports = db;

@@ -84,7 +84,7 @@ function setLoading(on) {
 }
 
 // ─── POPULATE RESULTS ─────────────────────────────────────────────────
-function populateResults(data) {
+window.populateResults = function(data) {
   const c = data.complexity || {};
   timeVal.textContent  = c.time  || '—';
   spaceVal.textContent = c.space || '—';

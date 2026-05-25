@@ -87,13 +87,17 @@ document.addEventListener('click', e => {
 
 // ── HOOK INTO populateResults ─────────────────
 window.addEventListener('load', () => {
-  const original = window.populateResults;
-  if (typeof original === 'function') {
-    window.populateResults = function(data) {
-      CL.lastResult = data;
-      original(data);
-    };
-  }
+  const interval = setInterval(() => {
+    if (typeof window.populateResults === 'function' && !window.populateResults._hooked) {
+      clearInterval(interval);
+      const original = window.populateResults;
+      window.populateResults = function(data) {
+        CL.lastResult = data;
+        original(data);
+      };
+      window.populateResults._hooked = true;
+    }
+  }, 50);
 });
 
 // ── SAVE ──────────────────────────────────────
@@ -156,7 +160,7 @@ async function generateChallenge() {
       }),
     });
     const data = await res.json();
-    const link = window.location.origin + data.link + '?shared=1';
+    const link = window.location.origin + data.link;
     document.getElementById('share-link-input').value = link;
     showToast('⚔ Challenge created!');
   } catch {
@@ -270,18 +274,17 @@ function loadHistoryItem(el) {
 async function checkNotifications() {
   if (!CL.token) return;
   try {
-    const res   = await fetch('/competitor/requests', {
-      headers: { 'Authorization': `Bearer ${CL.token}` },
-    });
-    const rows  = await res.json();
-    const badge = document.getElementById('notif-count');
+    const [compRes, challRes] = await Promise.all([
+      fetch('/competitor/requests',     { headers: { 'Authorization': `Bearer ${CL.token}` } }),
+      fetch('/challenge/notifications', { headers: { 'Authorization': `Bearer ${CL.token}` } }),
+    ]);
+    const compRows  = await compRes.json();
+    const challRows = await challRes.json();
+    const total  = (Array.isArray(compRows) ? compRows.length : 0) + (Array.isArray(challRows) ? challRows.length : 0);
+    const badge  = document.getElementById('notif-count');
     if (!badge) return;
-    if (rows.length > 0) {
-      badge.textContent   = rows.length;
-      badge.style.display = 'inline';
-    } else {
-      badge.style.display = 'none';
-    }
+    badge.textContent   = total;
+    badge.style.display = total > 0 ? 'inline' : 'none';
   } catch {}
 }
 
@@ -291,17 +294,19 @@ async function openNotifications() {
   list.innerHTML = '<div class="comp-empty">Loading...</div>';
 
   try {
-    const res  = await fetch('/competitor/requests', {
-      headers: { 'Authorization': `Bearer ${CL.token}` },
-    });
-    const rows = await res.json();
+    const [compRes, challRes] = await Promise.all([
+      fetch('/competitor/requests',     { headers: { 'Authorization': `Bearer ${CL.token}` } }),
+      fetch('/challenge/notifications', { headers: { 'Authorization': `Bearer ${CL.token}` } }),
+    ]);
+    const compRows  = await compRes.json();
+    const challRows = await challRes.json();
 
-    if (!rows.length) {
-      list.innerHTML = '<div class="comp-empty">No pending requests.</div>';
+    if (!compRows.length && !challRows.length) {
+      list.innerHTML = '<div class="comp-empty">No pending notifications.</div>';
       return;
     }
 
-    list.innerHTML = rows.map(r => `
+    const compHTML = compRows.map(r => `
       <div class="comp-result-item" id="req-${r.id}">
         <div class="comp-result-info">
           <div class="comp-avatar">${r.from_user[0].toUpperCase()}</div>
@@ -311,20 +316,62 @@ async function openNotifications() {
           </div>
         </div>
         <div style="display:flex;gap:6px;">
-          <button class="comp-add-btn"
-            onclick="respondToRequest('${r.from_user}', 'accept', ${r.id})">
-            ✓ Accept
-          </button>
-          <button class="comp-add-btn"
-            style="border-color:rgba(255,77,109,0.3);color:var(--danger);background:rgba(255,77,109,0.07);"
-            onclick="respondToRequest('${r.from_user}', 'decline', ${r.id})">
-            ✕ Decline
-          </button>
+          <button class="comp-add-btn" onclick="respondToRequest('${r.from_user}','accept',${r.id})">✓ Accept</button>
+          <button class="comp-add-btn" style="border-color:rgba(255,77,109,0.3);color:var(--danger);background:rgba(255,77,109,0.07);"
+            onclick="respondToRequest('${r.from_user}','decline',${r.id})">✕ Decline</button>
         </div>
       </div>`).join('');
 
+    const challHTML = challRows.map(r => `
+      <div class="comp-result-item" id="chreq-${r.id}">
+        <div class="comp-result-info">
+          <div class="comp-avatar">${r.from_user[0].toUpperCase()}</div>
+          <div>
+            <div class="comp-name">${r.from_user}</div>
+            <div style="font-size:0.68rem;color:var(--muted);">challenged you to a code battle! ⚔</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="comp-add-btn" onclick="acceptChallenge(${r.id},'${r.challenge_id}')">⚔ Accept</button>
+          <button class="comp-add-btn" style="border-color:rgba(255,77,109,0.3);color:var(--danger);background:rgba(255,77,109,0.07);"
+            onclick="forfeitChallenge(${r.id})">✕ Forfeit</button>
+        </div>
+      </div>`).join('');
+
+    list.innerHTML = compHTML + challHTML;
+
   } catch {
-    list.innerHTML = '<div class="comp-empty">Failed to load requests.</div>';
+    list.innerHTML = '<div class="comp-empty">Failed to load notifications.</div>';
+  }
+}
+
+async function acceptChallenge(notif_id, challenge_id) {
+  try {
+    await fetch('/challenge/respond', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${CL.token}` },
+      body: JSON.stringify({ notif_id, action: 'accept' }),
+    });
+    closeModal('notif-modal');
+    window.location.href = `/challenge/${challenge_id}`;
+  } catch {
+    showToast('❌ Could not accept challenge.');
+  }
+}
+
+async function forfeitChallenge(notif_id) {
+  try {
+    await fetch('/challenge/respond', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${CL.token}` },
+      body: JSON.stringify({ notif_id, action: 'forfeit' }),
+    });
+    const el = document.getElementById(`chreq-${notif_id}`);
+    if (el) el.remove();
+    showToast('Challenge forfeited. +1 trophy to challenger.');
+    checkNotifications();
+  } catch {
+    showToast('❌ Could not forfeit challenge.');
   }
 }
 

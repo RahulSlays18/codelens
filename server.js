@@ -178,12 +178,23 @@ app.get('/competitor/accepted', verifyToken, (req, res) => {
 
 // ── Create challenge ──────────────────────────
 app.post('/challenge/create', verifyToken, (req, res) => {
-  const { code, lang, result } = req.body;
+  const { code, lang, result, to_user } = req.body;
   const id = randomUUID();
   db.prepare(`
     INSERT INTO challenges (id,owner_id,owner_name,owner_code,owner_lang,owner_result)
     VALUES (?,?,?,?,?,?)
   `).run(id, req.user.id, req.user.username, code, lang, JSON.stringify(result));
+
+  // if a specific competitor was targeted, send them a notification
+  if (to_user && to_user !== req.user.username) {
+    try {
+      db.prepare(`
+        INSERT INTO challenge_notifications (to_user, from_user, challenge_id)
+        VALUES (?,?,?)
+      `).run(to_user, req.user.username, id);
+    } catch {}
+  }
+
   res.json({ challengeId: id, link: `/challenge/${id}` });
 });
 
@@ -245,6 +256,51 @@ ${code}`;
   }
 
   res.json({ verdict, challenge });
+});
+
+// ── Send challenge notification ──────────────
+app.post('/challenge/notify', verifyToken, (req, res) => {
+  const { to_user, challenge_id } = req.body;
+  if (!to_user || !challenge_id) return res.status(400).json({ error: 'Missing fields' });
+  if (to_user === req.user.username) return res.status(400).json({ error: "Can't challenge yourself" });
+  try {
+    db.prepare(`
+      INSERT INTO challenge_notifications (to_user, from_user, challenge_id)
+      VALUES (?,?,?)
+    `).run(to_user, req.user.username, challenge_id);
+    res.json({ ok: true });
+  } catch {
+    res.status(400).json({ error: 'Notification already sent' });
+  }
+});
+
+// ── Get challenge notifications ───────────────
+app.get('/challenge/notifications', verifyToken, (req, res) => {
+  const rows = db.prepare(`
+    SELECT * FROM challenge_notifications
+    WHERE to_user = ? AND status = 'pending'
+    ORDER BY created DESC
+  `).all(req.user.username);
+  res.json(rows);
+});
+
+// ── Respond to challenge notification ─────────
+app.post('/challenge/respond', verifyToken, (req, res) => {
+  const { notif_id, action } = req.body;
+  const notif = db.prepare('SELECT * FROM challenge_notifications WHERE id=?').get(notif_id);
+  if (!notif) return res.status(404).json({ error: 'Notification not found' });
+
+  db.prepare('UPDATE challenge_notifications SET status=? WHERE id=?')
+    .run(action === 'accept' ? 'accepted' : 'forfeited', notif_id);
+
+  if (action === 'forfeit') {
+    db.prepare('UPDATE challenges SET verdict=? WHERE id=?')
+      .run(JSON.stringify({ winner: 'A', reason: 'Rival forfeited.', same_problem: true, problem_summary: 'Forfeit', a_complexity: '—', b_complexity: '—' }), notif.challenge_id);
+    db.prepare('UPDATE users SET trophies = trophies + 1 WHERE username=?')
+      .run(notif.from_user);
+  }
+
+  res.json({ ok: true, challengeId: notif.challenge_id });
 });
 
 // ── Start ─────────────────────────────────────
