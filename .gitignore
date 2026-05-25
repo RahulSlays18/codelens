@@ -11,6 +11,6 @@ Thumbs.db
 
 # Node (if you ever add npm)
 node_modules/
-
+codelens.db
 .env
 node_modules/
