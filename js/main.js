@@ -62,13 +62,6 @@ async function handleAnalyze() {
   const code = codeInput.value.trim();
   if (!code) { showToast('Please paste some code first.'); return; }
 
-  if (!CONFIG.apiKey) {
-    showToast('⚠ Groq API key not set — add it to js/config.js');
-    setLoading(false);
-    setTimeout(() => populateDemoData(), 400);
-    return;
-  }
-
   setLoading(true);
   statusText.textContent = 'Calling Groq API…';
 
@@ -110,7 +103,7 @@ function populateResults(data) {
   renderGraph(data.nodes || [], data.edges || []);
 }
 
-// ─── DEMO DATA (no API key) ───────────────────────────────────────────
+// ─── DEMO DATA ────────────────────────────────────────────────────────
 function populateDemoData() {
   populateResults({
     nodes: [
