@@ -33,13 +33,28 @@ function continueAsGuest() {
   document.getElementById('guest-actions').style.display = 'flex';
 }
 
-function showAuthUI() {
+async function showAuthUI() {
   document.getElementById('auth-actions').style.display = 'flex';
   const initial = (CL.username || '?')[0].toUpperCase();
   document.getElementById('user-avatar').textContent       = initial;
   document.getElementById('user-name-display').textContent = CL.username;
   document.getElementById('dropdown-username').textContent = CL.username;
+
+  // sync accepted competitors from server into localStorage
+  await syncCompetitors();
   renderCompetitorAvatars();
+}
+
+// ── SYNC COMPETITORS FROM SERVER ──────────────
+async function syncCompetitors() {
+  if (!CL.token) return;
+  try {
+    const res  = await fetch('/competitor/accepted', {
+      headers: { 'Authorization': `Bearer ${CL.token}` },
+    });
+    const data = await res.json();
+    CL.competitors = data; // overwrites localStorage with server truth
+  } catch {}
 }
 
 // ── DROPDOWN ──────────────────────────────────
@@ -255,17 +270,17 @@ function loadHistoryItem(el) {
 async function checkNotifications() {
   if (!CL.token) return;
   try {
-    const res  = await fetch('/competitor/requests', {
+    const res   = await fetch('/competitor/requests', {
       headers: { 'Authorization': `Bearer ${CL.token}` },
     });
-    const rows = await res.json();
+    const rows  = await res.json();
     const badge = document.getElementById('notif-count');
     if (!badge) return;
     if (rows.length > 0) {
-      badge.textContent    = rows.length;
-      badge.style.display  = 'inline';
+      badge.textContent   = rows.length;
+      badge.style.display = 'inline';
     } else {
-      badge.style.display  = 'none';
+      badge.style.display = 'none';
     }
   } catch {}
 }
@@ -328,12 +343,9 @@ async function respondToRequest(from_user, action, id) {
     if (row) row.remove();
 
     if (action === 'accept') {
-      const list = CL.competitors;
-      if (!list.some(c => c.username === from_user)) {
-        list.push({ username: from_user });
-        CL.competitors = list;
-        renderCompetitorAvatars();
-      }
+      // sync from server so both sides are correct
+      await syncCompetitors();
+      renderCompetitorAvatars();
       showToast(`⚔ You and ${from_user} are now competitors!`);
     } else {
       showToast(`Request from ${from_user} declined.`);
@@ -345,11 +357,14 @@ async function respondToRequest(from_user, action, id) {
 }
 
 // ── ADD COMPETITOR MODAL ──────────────────────
-function openAddCompetitor() {
+async function openAddCompetitor() {
   document.getElementById('user-dropdown').classList.remove('open');
   document.getElementById('competitor-search').value = '';
   document.getElementById('competitor-results').innerHTML =
     '<div class="comp-empty">Type a username to search</div>';
+  
+  // sync from server first, then render
+  await syncCompetitors();
   renderMyCompetitors();
   openModal('competitor-modal');
 }

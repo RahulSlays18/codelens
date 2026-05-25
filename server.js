@@ -1,10 +1,10 @@
-const express      = require('express');
-const cors         = require('cors');
-const path         = require('path');
-const bcrypt       = require('bcrypt');
-const jwt          = require('jsonwebtoken');
+const express        = require('express');
+const cors           = require('cors');
+const path           = require('path');
+const bcrypt         = require('bcrypt');
+const jwt            = require('jsonwebtoken');
 const { randomUUID } = require('crypto');
-const db           = require('./db');
+const db             = require('./db');
 require('dotenv').config();
 
 const app = express();
@@ -30,8 +30,26 @@ app.post('/analyze', async (req, res) => {
       max_tokens:  1000,
       temperature: 0.1,
       messages: [
-        { role: 'system', content: `Return ONLY valid JSON with nodes, edges, complexity.` },
-        { role: 'user',   content: `Language: ${lang}\n\nCode:\n${code}` },
+        { role: 'system', content: `You are a code analyzer. Return ONLY valid JSON with this exact structure, no extra text:
+{
+  "nodes": [
+    { "id": "n1", "label": "descriptive label here", "type": "entry|return|condition|loop|call|assign" }
+  ],
+  "edges": [
+    { "source": "n1", "target": "n2" }
+  ],
+  "complexity": {
+    "time": "O(...)",
+    "timeExplain": "one sentence explanation",
+    "space": "O(...)",
+    "spaceExplain": "one sentence explanation",
+    "tip": "one concrete optimization suggestion"
+  }
+}
+Node types must be one of: entry, return, condition, loop, call, assign.
+Labels must be descriptive (e.g. "Entry: fib_iterative", "if n <= 1", "for _ in range", "return b").
+The tip field must always have a specific, useful suggestion — never leave it empty.` },
+        { role: 'user', content: `Language: ${lang}\n\nCode:\n${code}` },
       ],
     }),
   });
@@ -52,7 +70,7 @@ function verifyToken(req, res, next) {
   }
 }
 
-// ── Register ─────────────────────────────────
+// ── Register ──────────────────────────────────
 app.post('/register', async (req, res) => {
   const { username, password } = req.body;
   const hash = await bcrypt.hash(password, 10);
@@ -100,7 +118,7 @@ app.get('/users/search', (req, res) => {
   res.json(users);
 });
 
-// ── Competitor requests ───────────────────────
+// ── Send competitor request ───────────────────
 app.post('/competitor/request', verifyToken, (req, res) => {
   const { to_user } = req.body;
   if (to_user === req.user.username)
@@ -115,6 +133,7 @@ app.post('/competitor/request', verifyToken, (req, res) => {
   }
 });
 
+// ── Get pending requests ──────────────────────
 app.get('/competitor/requests', verifyToken, (req, res) => {
   const rows = db.prepare(
     "SELECT * FROM competitor_requests WHERE to_user = ? AND status = 'pending'"
@@ -122,12 +141,36 @@ app.get('/competitor/requests', verifyToken, (req, res) => {
   res.json(rows);
 });
 
+// ── Accept or decline ─────────────────────────
 app.post('/competitor/respond', verifyToken, (req, res) => {
   const { from_user, action } = req.body;
   db.prepare(
     'UPDATE competitor_requests SET status = ? WHERE from_user = ? AND to_user = ?'
   ).run(action === 'accept' ? 'accepted' : 'declined', from_user, req.user.username);
   res.json({ ok: true });
+});
+
+// ── Get accepted competitors ──────────────────
+app.get('/competitor/accepted', verifyToken, (req, res) => {
+  const username = req.user.username;
+  const rows = db.prepare(`
+    SELECT * FROM competitor_requests
+    WHERE (from_user = ? OR to_user = ?)
+    AND status = 'accepted'
+  `).all(username, username);
+
+  // deduplicate by username
+  const seen = new Set();
+  const competitors = [];
+  for (const r of rows) {
+    const other = r.from_user === username ? r.to_user : r.from_user;
+    if (!seen.has(other)) {
+      seen.add(other);
+      competitors.push({ username: other });
+    }
+  }
+
+  res.json(competitors);
 });
 
 // ── Challenges ────────────────────────────────
