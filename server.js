@@ -13,8 +13,9 @@ app.use(express.json());
 app.use(express.static('.'));
 
 // ── Page routes ──────────────────────────────
-app.get('/login', (req, res) => res.sendFile(path.join(__dirname, 'login.html')));
-app.get('/',      (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+app.get('/login',         (req, res) => res.sendFile(path.join(__dirname, 'login.html')));
+app.get('/',              (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+app.get('/challenge/:id', (req, res) => res.sendFile(path.join(__dirname, 'challenge.html')));
 
 // ── Analyze ──────────────────────────────────
 app.post('/analyze', async (req, res) => {
@@ -113,12 +114,19 @@ app.get('/users/search', (req, res) => {
   const q = req.query.q || '';
   if (q.length < 2) return res.json([]);
   const users = db.prepare(
-    'SELECT id, username FROM users WHERE username LIKE ? LIMIT 8'
+    'SELECT id, username, trophies FROM users WHERE username LIKE ? LIMIT 8'
   ).all(`%${q}%`);
   res.json(users);
 });
 
-// ── Send competitor request ───────────────────
+// ── Get user profile (trophies) ───────────────
+app.get('/profile/:username', (req, res) => {
+  const user = db.prepare('SELECT id, username, trophies FROM users WHERE username=?').get(req.params.username);
+  if (!user) return res.status(404).json({ error: 'Not found' });
+  res.json(user);
+});
+
+// ── Competitor requests ───────────────────────
 app.post('/competitor/request', verifyToken, (req, res) => {
   const { to_user } = req.body;
   if (to_user === req.user.username)
@@ -133,7 +141,6 @@ app.post('/competitor/request', verifyToken, (req, res) => {
   }
 });
 
-// ── Get pending requests ──────────────────────
 app.get('/competitor/requests', verifyToken, (req, res) => {
   const rows = db.prepare(
     "SELECT * FROM competitor_requests WHERE to_user = ? AND status = 'pending'"
@@ -141,7 +148,6 @@ app.get('/competitor/requests', verifyToken, (req, res) => {
   res.json(rows);
 });
 
-// ── Accept or decline ─────────────────────────
 app.post('/competitor/respond', verifyToken, (req, res) => {
   const { from_user, action } = req.body;
   db.prepare(
@@ -150,7 +156,6 @@ app.post('/competitor/respond', verifyToken, (req, res) => {
   res.json({ ok: true });
 });
 
-// ── Get accepted competitors ──────────────────
 app.get('/competitor/accepted', verifyToken, (req, res) => {
   const username = req.user.username;
   const rows = db.prepare(`
@@ -159,7 +164,6 @@ app.get('/competitor/accepted', verifyToken, (req, res) => {
     AND status = 'accepted'
   `).all(username, username);
 
-  // deduplicate by username
   const seen = new Set();
   const competitors = [];
   for (const r of rows) {
@@ -169,39 +173,47 @@ app.get('/competitor/accepted', verifyToken, (req, res) => {
       competitors.push({ username: other });
     }
   }
-
   res.json(competitors);
 });
 
-// ── Challenges ────────────────────────────────
+// ── Create challenge ──────────────────────────
 app.post('/challenge/create', verifyToken, (req, res) => {
   const { code, lang, result } = req.body;
   const id = randomUUID();
   db.prepare(`
-    INSERT INTO challenges (id,owner_id,owner_code,owner_lang,owner_result)
-    VALUES (?,?,?,?,?)
-  `).run(id, req.user.id, code, lang, JSON.stringify(result));
+    INSERT INTO challenges (id,owner_id,owner_name,owner_code,owner_lang,owner_result)
+    VALUES (?,?,?,?,?,?)
+  `).run(id, req.user.id, req.user.username, code, lang, JSON.stringify(result));
   res.json({ challengeId: id, link: `/challenge/${id}` });
 });
 
+// ── Get challenge data ────────────────────────
+app.get('/challenge/data/:id', (req, res) => {
+  const c = db.prepare('SELECT * FROM challenges WHERE id=?').get(req.params.id);
+  if (!c) return res.status(404).json({ error: 'Not found' });
+  res.json(c);
+});
+
+// ── Submit challenge ──────────────────────────
 app.post('/challenge/submit', verifyToken, async (req, res) => {
   const { challengeId, code, lang, result } = req.body;
   const challenge = db.prepare('SELECT * FROM challenges WHERE id=?').get(challengeId);
   if (!challenge) return res.status(404).json({ error: 'Challenge not found' });
+  if (challenge.rival_id) return res.status(400).json({ error: 'Challenge already completed' });
 
   const prompt = `Compare these two code snippets and return ONLY valid JSON:
 {
   "same_problem": true,
-  "problem_summary": "what problem both solve",
+  "problem_summary": "what problem both solve in one sentence",
   "winner": "A or B or tie",
-  "reason": "one sentence why",
+  "reason": "one sentence explaining why the winner is better",
   "a_complexity": "O(...)",
   "b_complexity": "O(...)"
 }
-Code A (${challenge.owner_lang}):
+Code A (${challenge.owner_lang}) by ${challenge.owner_name}:
 ${challenge.owner_code}
 
-Code B (${lang}):
+Code B (${lang}) by ${req.user.username}:
 ${code}`;
 
   const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -221,17 +233,18 @@ ${code}`;
 
   db.prepare(`
     UPDATE challenges
-    SET rival_id=?, rival_code=?, rival_lang=?, rival_result=?, verdict=?
+    SET rival_id=?, rival_name=?, rival_code=?, rival_lang=?, rival_result=?, verdict=?
     WHERE id=?
-  `).run(req.user.id, code, lang, JSON.stringify(result), JSON.stringify(verdict), challengeId);
+  `).run(req.user.id, req.user.username, code, lang, JSON.stringify(result), JSON.stringify(verdict), challengeId);
+
+  // ── Award trophy to winner ──
+  if (verdict.winner === 'A') {
+    db.prepare('UPDATE users SET trophies = trophies + 1 WHERE id = ?').run(challenge.owner_id);
+  } else if (verdict.winner === 'B') {
+    db.prepare('UPDATE users SET trophies = trophies + 1 WHERE id = ?').run(req.user.id);
+  }
 
   res.json({ verdict, challenge });
-});
-
-app.get('/challenge/:id', (req, res) => {
-  const c = db.prepare('SELECT * FROM challenges WHERE id=?').get(req.params.id);
-  if (!c) return res.status(404).json({ error: 'Not found' });
-  res.json(c);
 });
 
 // ── Start ─────────────────────────────────────

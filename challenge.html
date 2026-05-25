@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CodeLens — Challenge</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
+  <style>
+    :root {
+      --bg:      #0a0c10;
+      --bg2:     #111318;
+      --bg3:     #181c24;
+      --border:  #1f2430;
+      --accent:  #00e5c3;
+      --accent2: #ff6b35;
+      --text:    #e2e8f0;
+      --muted:   #5a6480;
+      --danger:  #ff4d6d;
+      --gold:    #ffd700;
+      --mono:    'JetBrains Mono', monospace;
+      --sans:    'Syne', sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 14px; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--mono);
+      min-height: 100vh;
+    }
+
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(rgba(0,229,195,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,229,195,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none; z-index: 0;
+    }
+
+    /* HEADER */
+    header {
+      position: relative; z-index: 10;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 20px; height: 44px;
+      background: rgba(10,12,16,0.9);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(12px);
+    }
+    .logo { display: flex; align-items: center; gap: 10px; font-family: var(--sans); font-weight: 800; font-size: 1.1rem; }
+    .logo-icon { width: 28px; height: 28px; background: var(--accent); border-radius: 6px; display: grid; place-items: center; color: var(--bg); font-size: 0.9rem; }
+    .logo span { color: var(--accent); }
+    .back-btn {
+      padding: 5px 14px; border: 1px solid var(--border); border-radius: 6px;
+      background: transparent; color: var(--muted); font-family: var(--mono);
+      font-size: 0.72rem; cursor: pointer; transition: all 0.18s;
+    }
+    .back-btn:hover { border-color: var(--muted); color: var(--text); }
+
+    /* MAIN */
+    .page { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 32px 20px; }
+
+    /* CHALLENGE BANNER */
+    .challenge-banner {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 14px; padding: 24px 28px; margin-bottom: 28px;
+      display: flex; align-items: center; justify-content: space-between; gap: 20px;
+    }
+    .banner-left h1 { font-family: var(--sans); font-size: 1.3rem; font-weight: 800; margin-bottom: 6px; }
+    .banner-left p { font-size: 0.76rem; color: var(--muted); line-height: 1.6; }
+    .banner-badge {
+      padding: 6px 16px; border-radius: 20px; font-family: var(--sans);
+      font-weight: 700; font-size: 0.8rem; white-space: nowrap;
+    }
+    .badge-open   { background: rgba(0,229,195,0.1); border: 1px solid rgba(0,229,195,0.3); color: var(--accent); }
+    .badge-closed { background: rgba(255,77,109,0.1); border: 1px solid rgba(255,77,109,0.3); color: var(--danger); }
+
+    /* OWNER SECTION */
+    .section-title {
+      font-family: var(--sans); font-weight: 700; font-size: 0.82rem;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 14px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .section-title span { color: var(--accent); }
+
+    .code-block {
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 10px; padding: 18px; margin-bottom: 20px;
+      font-size: 0.82rem; line-height: 1.7;
+      overflow-x: auto; white-space: pre;
+    }
+
+    .complexity-row {
+      display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;
+    }
+    .complexity-card {
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px 18px; flex: 1; min-width: 140px;
+    }
+    .complexity-label { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+    .complexity-value { font-family: var(--sans); font-size: 1.2rem; font-weight: 800; color: var(--accent); }
+
+    /* RIVAL SECTION */
+    .rival-section { margin-top: 32px; }
+
+    /* LOGIN GATE */
+    .login-gate {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 14px; padding: 36px; text-align: center;
+    }
+    .login-gate h2 { font-family: var(--sans); font-size: 1.1rem; font-weight: 800; margin-bottom: 8px; }
+    .login-gate p { font-size: 0.78rem; color: var(--muted); margin-bottom: 20px; }
+    .btn-primary {
+      padding: 11px 24px; background: var(--accent); color: var(--bg);
+      border: none; border-radius: 8px; font-family: var(--sans);
+      font-weight: 700; font-size: 0.9rem; cursor: pointer; transition: all 0.2s;
+    }
+    .btn-primary:hover { background: #00c9aa; box-shadow: 0 0 20px rgba(0,229,195,0.3); }
+
+    /* CODE INPUT */
+    .rival-input {
+      width: 100%; background: var(--bg3); border: 1px solid var(--border);
+      color: var(--text); font-family: var(--mono); font-size: 0.82rem;
+      padding: 16px; border-radius: 10px; outline: none; resize: vertical;
+      min-height: 200px; transition: border-color 0.18s; line-height: 1.7;
+    }
+    .rival-input:focus { border-color: var(--accent); }
+
+    .lang-select {
+      background: var(--bg3); border: 1px solid var(--border);
+      color: var(--text); font-family: var(--mono); font-size: 0.8rem;
+      padding: 7px 12px; border-radius: 7px; outline: none; margin-bottom: 12px;
+    }
+
+    .submit-btn {
+      width: 100%; padding: 13px; background: var(--accent); color: var(--bg);
+      border: none; border-radius: 8px; font-family: var(--sans);
+      font-weight: 700; font-size: 1rem; cursor: pointer; transition: all 0.2s;
+      margin-top: 14px; display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .submit-btn:hover { background: #00c9aa; box-shadow: 0 0 20px rgba(0,229,195,0.3); }
+    .submit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .spinner {
+      width: 16px; height: 16px; border: 2px solid rgba(0,0,0,0.3);
+      border-top-color: var(--bg); border-radius: 50%;
+      animation: spin 0.7s linear infinite; display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* VERDICT */
+    .verdict-box {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 14px; padding: 28px; margin-top: 28px;
+      display: none;
+    }
+    .verdict-box.show { display: block; }
+    .verdict-title {
+      font-family: var(--sans); font-size: 1.2rem; font-weight: 800;
+      margin-bottom: 6px; display: flex; align-items: center; gap: 10px;
+    }
+    .verdict-sub { font-size: 0.76rem; color: var(--muted); margin-bottom: 24px; }
+
+    /* COMPARISON GRID */
+    .comparison-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px;
+    }
+    .compare-card {
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 10px; padding: 18px;
+    }
+    .compare-card.winner {
+      border-color: var(--gold);
+      box-shadow: 0 0 20px rgba(255,215,0,0.1);
+    }
+    .compare-card.loser { opacity: 0.6; }
+    .compare-name {
+      font-family: var(--sans); font-weight: 700; font-size: 0.9rem;
+      margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+    }
+    .trophy-icon { font-size: 1.1rem; }
+    .compare-complexity { font-size: 0.76rem; color: var(--muted); margin-bottom: 8px; }
+    .compare-complexity span { color: var(--accent); font-weight: 600; }
+    .compare-code {
+      background: var(--bg); border-radius: 7px; padding: 12px;
+      font-size: 0.74rem; line-height: 1.6; overflow-x: auto;
+      white-space: pre; max-height: 180px; overflow-y: auto;
+      border: 1px solid var(--border);
+    }
+
+    /* WINNER BANNER */
+    .winner-banner {
+      background: linear-gradient(135deg, rgba(255,215,0,0.1), rgba(255,165,0,0.05));
+      border: 1px solid rgba(255,215,0,0.3);
+      border-radius: 10px; padding: 18px 22px; margin-bottom: 20px;
+      display: flex; align-items: center; gap: 14px;
+    }
+    .winner-trophy { font-size: 2rem; }
+    .winner-text h3 { font-family: var(--sans); font-weight: 800; font-size: 1rem; color: var(--gold); margin-bottom: 4px; }
+    .winner-text p { font-size: 0.76rem; color: var(--muted); }
+
+    .tie-banner {
+      background: rgba(90,100,128,0.1); border: 1px solid var(--border);
+      border-radius: 10px; padding: 18px 22px; margin-bottom: 20px;
+      display: flex; align-items: center; gap: 14px;
+    }
+
+    /* SHARE CHALLENGE */
+    .share-row {
+      display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap;
+    }
+    .share-chip {
+      display: flex; align-items: center; gap: 6px;
+      padding: 8px 14px; border: 1px solid var(--border);
+      border-radius: 7px; background: var(--bg3); color: var(--text);
+      font-family: var(--mono); font-size: 0.74rem; cursor: pointer;
+      transition: all 0.18s;
+    }
+    .share-chip:hover { border-color: var(--accent); color: var(--accent); }
+    .share-chip.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); font-family: var(--sans); font-weight: 700; }
+    .share-chip.primary:hover { background: #00c9aa; }
+
+    /* COMPETITOR SELECT */
+    .competitor-select {
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 10px; padding: 16px; margin-top: 16px;
+    }
+    .competitor-select p { font-size: 0.74rem; color: var(--muted); margin-bottom: 12px; }
+    .competitor-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 10px; border-radius: 7px; margin-bottom: 6px;
+      background: var(--bg); border: 1px solid var(--border);
+    }
+    .competitor-info { display: flex; align-items: center; gap: 8px; }
+    .comp-av {
+      width: 26px; height: 26px; border-radius: 50%;
+      background: var(--bg3); border: 1px solid var(--border);
+      display: grid; place-items: center; font-size: 0.7rem;
+      font-weight: 700; color: var(--accent);
+    }
+    .comp-nm { font-size: 0.8rem; }
+    .comp-trophies { font-size: 0.68rem; color: var(--muted); }
+    .send-btn {
+      padding: 4px 12px; background: rgba(0,229,195,0.1);
+      border: 1px solid rgba(0,229,195,0.3); color: var(--accent);
+      border-radius: 5px; font-family: var(--mono); font-size: 0.68rem;
+      cursor: pointer; transition: all 0.18s;
+    }
+    .send-btn:hover { background: rgba(0,229,195,0.2); }
+
+    #toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: var(--bg2); border: 1px solid var(--border);
+      color: var(--text); padding: 10px 20px; border-radius: 8px;
+      font-size: 0.78rem; opacity: 0; transition: all 0.3s; z-index: 999;
+      white-space: nowrap;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    @media (max-width: 640px) {
+      .comparison-grid { grid-template-columns: 1fr; }
+      .challenge-banner { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">⌬</div>
+    Code<span>Lens</span>
+  </div>
+  <button class="back-btn" onclick="window.location.href='/'">← Back to App</button>
+</header>
+
+<div class="page">
+
+  <!-- Loading state -->
+  <div id="loading-state" style="text-align:center;padding:60px 0;color:var(--muted);">
+    Loading challenge...
+  </div>
+
+  <!-- Main content (hidden until loaded) -->
+  <div id="main-content" style="display:none;">
+
+    <!-- Banner -->
+    <div class="challenge-banner">
+      <div class="banner-left">
+        <h1>⚔ Challenge by <span id="owner-name" style="color:var(--accent);">—</span></h1>
+        <p id="challenge-desc">Analyze the same problem and beat their complexity!</p>
+      </div>
+      <div class="banner-badge badge-open" id="status-badge">Open</div>
+    </div>
+
+    <!-- Owner's analysis -->
+    <div class="section-title">👤 <span id="owner-label">Owner</span>'s Solution</div>
+
+    <div class="complexity-row">
+      <div class="complexity-card">
+        <div class="complexity-label">Time Complexity</div>
+        <div class="complexity-value" id="owner-time">—</div>
+        <div style="font-size:0.68rem;color:var(--muted);margin-top:4px;" id="owner-time-explain"></div>
+      </div>
+      <div class="complexity-card">
+        <div class="complexity-label">Space Complexity</div>
+        <div class="complexity-value" id="owner-space">—</div>
+        <div style="font-size:0.68rem;color:var(--muted);margin-top:4px;" id="owner-space-explain"></div>
+      </div>
+      <div class="complexity-card" style="flex:2;">
+        <div class="complexity-label">Language</div>
+        <div class="complexity-value" style="font-size:0.9rem;" id="owner-lang">—</div>
+      </div>
+    </div>
+
+    <div class="section-title">📄 Their Code</div>
+    <div class="code-block" id="owner-code">—</div>
+
+    <!-- Share row (shown when challenge is first created) -->
+    <div id="share-section" style="display:none;">
+      <div class="section-title" style="margin-top:8px;">📤 Share this Challenge</div>
+      <div class="share-row">
+        <button class="share-chip primary" onclick="copyLink()">🔗 Copy Link</button>
+        <button class="share-chip" onclick="shareText()">📋 Copy as Text</button>
+        <button class="share-chip" onclick="shareTwitter()">𝕏 Tweet</button>
+      </div>
+      <div class="competitor-select" id="competitor-share-list">
+        <p>Send directly to your competitors:</p>
+        <div id="competitor-items">
+          <div style="color:var(--muted);font-size:0.74rem;">Loading competitors...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rival section -->
+    <div class="rival-section" id="rival-section">
+
+      <!-- Not logged in -->
+      <div class="login-gate" id="login-gate" style="display:none;">
+        <h2>Ready to accept the challenge?</h2>
+        <p>Log in to submit your solution and battle <span id="gate-owner">the challenger</span>.</p>
+        <button class="btn-primary" onclick="window.location.href='/login'">Login / Register</button>
+      </div>
+
+      <!-- Already completed -->
+      <div id="completed-section" style="display:none;">
+        <div class="section-title" style="margin-top:8px;">✅ Challenge Completed</div>
+      </div>
+
+      <!-- Submit form -->
+      <div id="submit-section" style="display:none;">
+        <div class="section-title" style="margin-top:8px;">⚡ Your Solution</div>
+        <p style="font-size:0.76rem;color:var(--muted);margin-bottom:14px;">
+          Solve the same problem in any language, analyze it, and submit to get an AI verdict.
+        </p>
+        <select class="lang-select" id="rival-lang">
+          <option value="c">C</option>
+          <option value="cpp">C++</option>
+          <option value="python" selected>Python</option>
+          <option value="java">Java</option>
+        </select>
+        <textarea class="rival-input" id="rival-code" placeholder="// Paste your solution here..."></textarea>
+        <button class="submit-btn" id="submit-btn" onclick="submitChallenge()">
+          <span id="submit-text">⚡ Analyze & Submit</span>
+          <span class="spinner" id="submit-spinner"></span>
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Verdict -->
+    <div class="verdict-box" id="verdict-box">
+      <div class="verdict-title">🏆 AI Verdict</div>
+      <div class="verdict-sub" id="verdict-problem"></div>
+
+      <!-- Winner banner -->
+      <div class="winner-banner" id="winner-banner" style="display:none;">
+        <div class="winner-trophy">🏆</div>
+        <div class="winner-text">
+          <h3 id="winner-name">Winner</h3>
+          <p id="winner-reason"></p>
+        </div>
+      </div>
+      <div class="tie-banner" id="tie-banner" style="display:none;">
+        <div style="font-size:2rem;">🤝</div>
+        <div>
+          <div style="font-family:var(--sans);font-weight:700;margin-bottom:4px;">It's a Tie!</div>
+          <div style="font-size:0.76rem;color:var(--muted);" id="tie-reason"></div>
+        </div>
+      </div>
+
+      <!-- Comparison grid -->
+      <div class="comparison-grid" id="comparison-grid"></div>
+    </div>
+
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+  // ── STATE ──────────────────────────────────
+  const challengeId = window.location.pathname.split('/challenge/')[1];
+  const token       = localStorage.getItem('cl_token');
+  const username    = localStorage.getItem('cl_username');
+  let challengeData = null;
+
+  // ── INIT ───────────────────────────────────
+  (async function init() {
+    try {
+      const res  = await fetch(`/challenge/data/${challengeId}`);
+      if (!res.ok) throw new Error('Not found');
+      challengeData = await res.json();
+      renderChallenge();
+    } catch {
+      document.getElementById('loading-state').textContent = '❌ Challenge not found.';
+    }
+  })();
+
+  function renderChallenge() {
+    document.getElementById('loading-state').style.display  = 'none';
+    document.getElementById('main-content').style.display   = 'block';
+
+    // Owner info
+    const ownerResult = JSON.parse(challengeData.owner_result || '{}');
+    const c = ownerResult.complexity || {};
+
+    document.getElementById('owner-name').textContent        = challengeData.owner_name;
+    document.getElementById('owner-label').textContent       = challengeData.owner_name;
+    document.getElementById('gate-owner').textContent        = challengeData.owner_name;
+    document.getElementById('owner-time').textContent        = c.time  || '—';
+    document.getElementById('owner-space').textContent       = c.space || '—';
+    document.getElementById('owner-time-explain').textContent  = c.timeExplain  || '';
+    document.getElementById('owner-space-explain').textContent = c.spaceExplain || '';
+    document.getElementById('owner-lang').textContent        = (challengeData.owner_lang || '').toUpperCase();
+    document.getElementById('owner-code').textContent        = challengeData.owner_code || '';
+    document.getElementById('challenge-desc').textContent    =
+      c.tip ? `Tip from owner: "${c.tip}"` : 'Analyze the same problem and beat their complexity!';
+
+    // If challenge already completed show verdict
+    if (challengeData.verdict) {
+      document.getElementById('status-badge').textContent  = 'Completed';
+      document.getElementById('status-badge').className    = 'banner-badge badge-closed';
+      document.getElementById('completed-section').style.display = 'block';
+      showVerdict(JSON.parse(challengeData.verdict));
+      return;
+    }
+
+    // Check if coming from share (show share section)
+    const fromShare = new URLSearchParams(window.location.search).get('shared');
+    if (fromShare === '1') {
+      document.getElementById('share-section').style.display = 'block';
+      loadCompetitors();
+    }
+
+    // Show correct rival section
+    if (!token) {
+      document.getElementById('login-gate').style.display = 'block';
+    } else if (username === challengeData.owner_name) {
+      // Owner viewing their own challenge
+      document.getElementById('submit-section').style.display   = 'none';
+      document.getElementById('share-section').style.display    = 'block';
+      loadCompetitors();
+    } else {
+      document.getElementById('submit-section').style.display = 'block';
+    }
+  }
+
+  // ── LOAD COMPETITORS ───────────────────────
+  async function loadCompetitors() {
+    if (!token) return;
+    try {
+      const res   = await fetch('/competitor/accepted', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const comps = await res.json();
+      const el    = document.getElementById('competitor-items');
+
+      if (!comps.length) {
+        el.innerHTML = '<div style="color:var(--muted);font-size:0.74rem;">No competitors added yet.</div>';
+        return;
+      }
+
+      const link = window.location.origin + `/challenge/${challengeId}`;
+      el.innerHTML = await Promise.all(comps.map(async c => {
+        let trophies = 0;
+        try {
+          const r = await fetch(`/profile/${encodeURIComponent(c.username)}`);
+          const d = await r.json();
+          trophies = d.trophies || 0;
+        } catch {}
+        return `
+          <div class="competitor-item">
+            <div class="competitor-info">
+              <div class="comp-av">${c.username[0].toUpperCase()}</div>
+              <div>
+                <div class="comp-nm">${c.username}</div>
+                <div class="comp-trophies">🏆 ${trophies} trophy${trophies !== 1 ? 'ies' : ''}</div>
+              </div>
+            </div>
+            <button class="send-btn" onclick="sendToCompetitor('${c.username}', '${link}', this)">Send ↗</button>
+          </div>`;
+      })).then(arr => arr.join(''));
+    } catch {}
+  }
+
+  async function sendToCompetitor(username, link, btn) {
+    // Copy link and show toast (in real app could send notification)
+    await navigator.clipboard.writeText(link);
+    btn.textContent = '✓ Copied!';
+    showToast(`Link copied — share it with ${username}!`);
+    setTimeout(() => btn.textContent = 'Send ↗', 2000);
+  }
+
+  // ── SUBMIT ─────────────────────────────────
+  async function submitChallenge() {
+    const code = document.getElementById('rival-code').value.trim();
+    const lang = document.getElementById('rival-lang').value;
+    if (!code) { showToast('Paste your code first!'); return; }
+    if (!token) { window.location.href = '/login'; return; }
+
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true;
+    document.getElementById('submit-text').style.display   = 'none';
+    document.getElementById('submit-spinner').style.display = 'block';
+
+    try {
+      // First analyze the rival's code
+      showToast('Analyzing your code...');
+      const analyzeRes = await fetch('/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, lang }),
+      });
+      const result = await analyzeRes.json();
+
+      // Then submit the challenge
+      showToast('Getting AI verdict...');
+      const submitRes = await fetch('/challenge/submit', {
+        method: 'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ challengeId, code, lang, result }),
+      });
+      const data = await submitRes.json();
+      if (!submitRes.ok) throw new Error(data.error || 'Submit failed');
+
+      document.getElementById('submit-section').style.display = 'none';
+      showVerdict(data.verdict);
+      showToast('✓ Challenge complete!');
+
+    } catch (err) {
+      showToast('❌ Error: ' + err.message);
+      btn.disabled = false;
+      document.getElementById('submit-text').style.display   = 'block';
+      document.getElementById('submit-spinner').style.display = 'none';
+    }
+  }
+
+  // ── SHOW VERDICT ───────────────────────────
+  function showVerdict(verdict) {
+    const box = document.getElementById('verdict-box');
+    box.classList.add('show');
+
+    document.getElementById('verdict-problem').textContent =
+      verdict.problem_summary || 'AI comparison complete.';
+
+    const ownerResult = JSON.parse(challengeData.owner_result || '{}');
+    const rivalResult = JSON.parse(challengeData.rival_result || '{}');
+    const oc = ownerResult.complexity || {};
+    const rc = rivalResult.complexity || {};
+
+    const ownerName = challengeData.owner_name;
+    const rivalName = challengeData.rival_name || username;
+    const winner    = verdict.winner; // 'A', 'B', or 'tie'
+
+    // Winner/tie banner
+    if (winner === 'tie') {
+      document.getElementById('tie-banner').style.display   = 'flex';
+      document.getElementById('tie-reason').textContent     = verdict.reason || '';
+    } else {
+      const winnerName = winner === 'A' ? ownerName : rivalName;
+      document.getElementById('winner-banner').style.display = 'flex';
+      document.getElementById('winner-name').textContent     = `🏆 ${winnerName} wins!`;
+      document.getElementById('winner-reason').textContent   = verdict.reason || '';
+    }
+
+    // Comparison cards
+    const grid = document.getElementById('comparison-grid');
+    const aWon = winner === 'A';
+    const bWon = winner === 'B';
+
+    grid.innerHTML = `
+      <div class="compare-card ${aWon ? 'winner' : bWon ? 'loser' : ''}">
+        <div class="compare-name">
+          ${aWon ? '<span class="trophy-icon">🏆</span>' : ''}
+          ${ownerName}
+          <span style="font-size:0.68rem;color:var(--muted);font-family:var(--mono);">${(challengeData.owner_lang||'').toUpperCase()}</span>
+        </div>
+        <div class="compare-complexity">Time: <span>${verdict.a_complexity || oc.time || '—'}</span></div>
+        <div class="compare-complexity">Space: <span>${oc.space || '—'}</span></div>
+        <div class="compare-code">${escapeHtml(challengeData.owner_code || '')}</div>
+      </div>
+      <div class="compare-card ${bWon ? 'winner' : aWon ? 'loser' : ''}">
+        <div class="compare-name">
+          ${bWon ? '<span class="trophy-icon">🏆</span>' : ''}
+          ${rivalName}
+          <span style="font-size:0.68rem;color:var(--muted);font-family:var(--mono);">${(challengeData.rival_lang||'').toUpperCase()}</span>
+        </div>
+        <div class="compare-complexity">Time: <span>${verdict.b_complexity || rc.time || '—'}</span></div>
+        <div class="compare-complexity">Space: <span>${rc.space || '—'}</span></div>
+        <div class="compare-code">${escapeHtml(challengeData.rival_code || '')}</div>
+      </div>`;
+
+    // Trophy notification
+    if (winner !== 'tie') {
+      const winnerName = winner === 'A' ? ownerName : rivalName;
+      if (winnerName === username) {
+        setTimeout(() => showToast('🏆 +1 Trophy awarded to you!'), 1000);
+      }
+    }
+  }
+
+  // ── SHARE ──────────────────────────────────
+  function copyLink() {
+    const link = window.location.origin + `/challenge/${challengeId}`;
+    navigator.clipboard.writeText(link);
+    showToast('📋 Challenge link copied!');
+  }
+
+  function shareText() {
+    const ownerResult = JSON.parse(challengeData.owner_result || '{}');
+    const c = ownerResult.complexity || {};
+    const text =
+      `⚔ CodeLens Challenge by ${challengeData.owner_name}!\n` +
+      `Their complexity: Time ${c.time || '?'} | Space ${c.space || '?'}\n` +
+      `Can you beat it? ${window.location.origin}/challenge/${challengeId}`;
+    navigator.clipboard.writeText(text);
+    showToast('📋 Copied as text!');
+  }
+
+  function shareTwitter() {
+    const ownerResult = JSON.parse(challengeData.owner_result || '{}');
+    const c = ownerResult.complexity || {};
+    const text = encodeURIComponent(
+      `⚔ I just issued a CodeLens challenge!\n` +
+      `My complexity: Time ${c.time || '?'} | Space ${c.space || '?'}\n` +
+      `Can you beat it? #CodeLens #BigO #DSA`
+    );
+    window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank');
+  }
+
+  // ── UTILS ──────────────────────────────────
+  function escapeHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3500);
+  }
+</script>
+
+</body>
+</html>

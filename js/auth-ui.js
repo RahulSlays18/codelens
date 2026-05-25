@@ -156,7 +156,7 @@ async function generateChallenge() {
       }),
     });
     const data = await res.json();
-    const link = window.location.origin + data.link;
+    const link = window.location.origin + data.link + '?shared=1';
     document.getElementById('share-link-input').value = link;
     showToast('⚔ Challenge created!');
   } catch {
